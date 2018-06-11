@@ -18,7 +18,7 @@ This will do the following:
 
 ### Project setup ###
 
-* Clone project with ```git clone``` [https://bitbucket.org/ramprax/mt4extdl.git](https://bitbucket.org/ramprax/mt4extdl.git)
+* Clone project with ```git clone``` [https://github.com/ramprax/agni-gcr-attendance.git](https://github.com/ramprax/agni-gcr-attendance.git)
 * Set up a virtualenv for the project and enter into the venv
 * Run ```pip install -r dev-requirements.txt```
 
