@@ -7,7 +7,7 @@ This will do the following:
 * Generate a consolidated email-wise attendance report
 
 ### Using the program ###
-* Download ```agni_gcr_attendance.exe``` from []
+* Download ```agni_gcr_attendance.exe``` from [https://github.com/ramprax/agni-gcr-attendance/releases](https://github.com/ramprax/agni-gcr-attendance/releases)
 * Save it to any folder of your choice
 * Copy the webinar attendee reports csv files(downloaded from zoom website) to the above folder
 * Run ```agni_gcr_attendance.exe``` by double clicking it
