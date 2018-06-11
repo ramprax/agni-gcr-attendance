@@ -1,10 +1,48 @@
 import csv
 from collections import OrderedDict
 from datetime import datetime
-from os import listdir
+from logging import basicConfig, DEBUG, Formatter, getLogger, INFO, StreamHandler
+from logging.handlers import TimedRotatingFileHandler
+from os import listdir, makedirs
 from os.path import exists, join
 import sqlite3
 import sys
+
+
+def addFileHandler(filepath):
+    rootLogger = getLogger()
+    fh = TimedRotatingFileHandler(filepath, when='midnight')
+    fh.setLevel(DEBUG)
+    fh.setFormatter(Formatter(fmt='%(asctime)s %(levelname)-9.9s %(message)s', datefmt='%d-%b-%Y %H:%M:%S'))
+    rootLogger.addHandler(fh)
+    return fh
+
+
+def getLogFilePath():
+    if not exists('logs'):
+        makedirs('logs')
+    filename = 'agni_gcr_attendance.log'
+    return join('logs', filename)
+
+
+def _configureLogger():
+    basicConfig(
+        format='%(asctime)s %(levelname)-9.9s %(message)s',
+        datefmt='%d-%b-%Y %H:%M:%S',
+        level=DEBUG
+    )
+    fh = addFileHandler(getLogFilePath())
+    for h in getLogger().handlers:
+        if isinstance(h, StreamHandler):
+            if h.stream == sys.stderr or h.stream == sys.stdout:
+                h.setLevel(INFO)
+
+    return fh
+
+
+_configureLogger()
+_logger = getLogger(__name__)
+_logger.info('Log file location: %s', getLogFilePath())
 
 TABLE_WEBINAR = '''
     CREATE TABLE IF NOT EXISTS webinar(id INTEGER PRIMARY KEY, zoom_webinar_id TEXT, topic TEXT)
@@ -26,6 +64,7 @@ SECTION_NAMES = (
     'Attendee Details',
     'Other Attended',
 )
+
 
 class AttendeeReportImporter:
     
@@ -219,25 +258,26 @@ class AttendeeReportImporter:
         self._resetCurrentContext()
         curSection = None
         curLine = 0
+        line = None
         try:
             with open(filename, 'rt') as fd:
                 rdr = csv.reader(fd, skipinitialspace=True)
                 for line in rdr:
                     curLine = rdr.line_num
                     # print 'Line:', curLine, line
-                    # line = line.strip()
                     if not line:
                         continue
                     line = [l.strip() for l in line]
                     for s in SECTION_NAMES:
                         if line[0].strip().startswith(s):
-                            # print 'Got section', s
+                            _logger.debug('At line %s: Got section %s', curLine, s)
                             curSection = s
                             break
                     self.processLine(curSection, line)
         except:
-            print >> sys.stderr, '**** Error in file %s at line %s'%(filename, curLine)
+            _logger.exception('**** Error in file %s at line %s: %s', filename, curLine, line)
             raise
+
 
 def generateEmailWiseAttendanceFromDB(cnx, zoomWebinarId):
     classDatesQuery = '''
@@ -282,7 +322,7 @@ def generateEmailWiseAttendanceFromDB(cnx, zoomWebinarId):
     cur.execute(classDatesQuery, (zoomWebinarId,))
     rows = cur.fetchall()
     if not rows:
-        print >> sys.stderr, 'Unknown zoom webinar id: %s' % zoomWebinarId
+        _logger.error('Unknown zoom webinar id: %s', zoomWebinarId)
         return
     classDates = [r[0] for r in rows]
     header = ['Email']+classDates
@@ -304,7 +344,7 @@ def generateEmailWiseAttendanceFromDB(cnx, zoomWebinarId):
         yield ([currEmail]+currAttendedArray)
         count += 1
     cur.close()
-    print '%s lines yielded'%count
+    _logger.info('%s lines yielded', count)
 
 
 def loadAttendeeReportsToDB(dbfile, webinarId):
@@ -312,7 +352,7 @@ def loadAttendeeReportsToDB(dbfile, webinarId):
     ai = AttendeeReportImporter(conn)
     for f in listdir('.'):
         if exists(f) and f.startswith(webinarId+' - Attendee Report'):
-            print 'Processing file:', f
+            _logger.info('Processing file: %s', f)
             ai.importAttendeeReport(f)
     conn.close()
 
@@ -320,21 +360,31 @@ def loadAttendeeReportsToDB(dbfile, webinarId):
 def exportAttendanceFromDB(dbfile, zoomWebinarId, outputfilepath):
     conn = sqlite3.connect(dbfile)
     with open(outputfilepath, 'wt') as ofd:
-        print 'Writing to', outputfilepath
+        _logger.info('Writing to %s', outputfilepath)
         wrt = csv.writer(ofd)
         wrt.writerows(generateEmailWiseAttendanceFromDB(conn, zoomWebinarId))
     conn.close()
 
-
+def getOutputFilePath(zoomWebinarId):
+    if not exists('output'):
+        makedirs('output')
+    return join('output', '%s-AttendanceByEmail.csv'%zoomWebinarId)
+    
 def main():
     # processNoDB()
-    dbfile = 'agni-gcr.db'
-    zoomWebinarId = raw_input("Enter zoom webinar id> ")
-    zoomWebinarId = zoomWebinarId.replace('-', '')
-    print 'Processing zoom webinar id: ', zoomWebinarId
-    loadAttendeeReportsToDB(dbfile, zoomWebinarId)
-    exportAttendanceFromDB(dbfile, zoomWebinarId,
-                           join('output', '%s-AttendanceByEmail.csv'%zoomWebinarId))
+    try:
+        dbfile = 'agni-gcr.db'
+        zoomWebinarId = raw_input("Enter zoom webinar id> ")
+        
+        zoomWebinarId = zoomWebinarId.replace('-', '')
+        _logger.info('Processing zoom webinar id: %s', zoomWebinarId)
+        loadAttendeeReportsToDB(dbfile, zoomWebinarId)
+        exportAttendanceFromDB(dbfile, zoomWebinarId, getOutputFilePath(zoomWebinarId))
+    except:
+        _logger.exception('Error occurred')
+        raise
+    finally:
+        raw_input('Press <ENTER> key to quit..')
 
 
 if __name__ == '__main__':

@@ -5,3 +5,5 @@ dist
 *.csv 
 *.spec 
 *.db 
+logs
+*.log

@@ -14,7 +14,7 @@ This will do the following:
 * On first run, this will create a file ```agni-gcr.db```
 * On subsequent runs, this file will be kept updated and used
 * A directory `output` will be created where the consolidated reports will be saved
-* You can look at the contents using of ```agni-gcr.db``` using sqlite browser like []
+* You can look at the contents using of ```agni-gcr.db``` using sqlite browser like [https://sqlitebrowser.org/](https://sqlitebrowser.org/)
 
 ### Project setup ###
 
