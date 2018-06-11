@@ -7,14 +7,14 @@ This will do the following:
 * Generate a consolidated email-wise attendance report
 
 ### Using the program ###
-* Download ```agni_gcr_attendance.exe``` from [https://github.com/ramprax/agni-gcr-attendance/releases](https://github.com/ramprax/agni-gcr-attendance/releases)
-* Save it to any folder of your choice
+* Download ```agni_gcr_attendance-win64.zip``` from [https://github.com/ramprax/agni-gcr-attendance/releases](https://github.com/ramprax/agni-gcr-attendance/releases)
+* Extract the contents to any folder of your choice
 * Copy the webinar attendee reports csv files(downloaded from zoom website) to the above folder
 * Run ```agni_gcr_attendance.exe``` by double clicking it
 * On first run, this will create a file ```agni-gcr.db```
 * On subsequent runs, this file will be kept updated and used
 * A directory `output` will be created where the consolidated reports will be saved
-* You can look at the contents using of ```agni-gcr.db``` using sqlite browser like [https://sqlitebrowser.org/](https://sqlitebrowser.org/)
+* You can look at the contents of ```agni-gcr.db``` using sqlite browser like [https://sqlitebrowser.org/](https://sqlitebrowser.org/)
 
 ### Project setup ###
 
