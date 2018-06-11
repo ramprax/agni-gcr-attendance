@@ -1,2 +1,7 @@
 *.pyc 
 output 
+build 
+dist 
+*.csv 
+*.spec 
+*.db 
