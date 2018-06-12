@@ -4,7 +4,7 @@ from datetime import datetime
 from logging import basicConfig, DEBUG, Formatter, getLogger, INFO, StreamHandler
 from logging.handlers import TimedRotatingFileHandler
 from os import listdir, makedirs
-from os.path import exists, join
+from os.path import exists, join, isdir
 import sqlite3
 import sys
 
@@ -42,6 +42,12 @@ def _configureLogger():
 
 _configureLogger()
 _logger = getLogger(__name__)
+
+def flushLogs():
+    for h in getLogger().handlers:
+        if isinstance(h, StreamHandler):
+            h.flush()
+
 _logger.info('Log file location: %s', getLogFilePath())
 
 TABLE_WEBINAR = '''
@@ -65,6 +71,10 @@ SECTION_NAMES = (
     'Other Attended',
 )
 
+ZOOM_WEBINAR_DATETIME_FORMAT = '%b %d, %Y %I:%M %p'
+ZOOM_REGISTRATION_DATETIME_FORMAT = '%b %d, %Y %H:%M:%S'
+INTERNAL_DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+EXPORT_DATE_FORMAT = '%b %d, %Y'
 
 class AttendeeReportImporter:
     
@@ -127,8 +137,8 @@ class AttendeeReportImporter:
             self.currentWebinarId = rows[0][0]
         
         originalClassDateStr = line[2]
-        classDate = datetime.strptime(originalClassDateStr, '%b %d, %Y %I:%M %p')
-        internalClassDateStr = classDate.strftime('%Y-%m-%d %H:%M:%S')
+        classDate = datetime.strptime(originalClassDateStr, ZOOM_WEBINAR_DATETIME_FORMAT)
+        internalClassDateStr = classDate.strftime(INTERNAL_DATETIME_FORMAT)
         # Save to table webinar class
         cq = '''
             SELECT id FROM webinar_class WHERE webinar_id = ? AND internal_datetime = ?
@@ -169,8 +179,8 @@ class AttendeeReportImporter:
         
         registeredDateStr = line[self.regDateColIndex]
         if registeredDateStr:
-            registeredDate = datetime.strptime(registeredDateStr, '%b %d, %Y %H:%M:%S')
-            internalRegisteredDateStr = registeredDate.strftime('%Y-%m-%d %H:%M:%S')
+            registeredDate = datetime.strptime(registeredDateStr, ZOOM_REGISTRATION_DATETIME_FORMAT)
+            internalRegisteredDateStr = registeredDate.strftime(INTERNAL_DATETIME_FORMAT)
         else:
             registeredDate = None
             internalRegisteredDateStr = None
@@ -279,7 +289,16 @@ class AttendeeReportImporter:
             raise
 
 
-def generateEmailWiseAttendanceFromDB(cnx, zoomWebinarId):
+def isDefaulter(attendanceArray, days=4):
+    if len(attendanceArray) > days:
+        attSet = set(attendanceArray[-days:])
+        if ('Yes' not in attSet) and ('NA' not in attSet):
+            return True
+
+    return False
+
+
+def generateEmailWiseAttendanceFromDB(cnx, zoomWebinarId, attendanceWriter, defaultersWriter, defaultDays=4):
     classDatesQuery = '''
         SELECT wc.original_datetime
         FROM
@@ -324,10 +343,12 @@ def generateEmailWiseAttendanceFromDB(cnx, zoomWebinarId):
     if not rows:
         _logger.error('Unknown zoom webinar id: %s', zoomWebinarId)
         return
-    classDates = [r[0] for r in rows]
+    classDates = [datetime.strptime(r[0], ZOOM_WEBINAR_DATETIME_FORMAT).strftime(EXPORT_DATE_FORMAT) for r in rows]
     header = ['Email']+classDates
-    yield header
-    count += 1
+    attendanceWriter.writerow(header)
+    defaultersWriter.writerow(['Email'])
+    count = 0
+    defaultersCount = 0
     currEmail = None
     currAttendedArray = []
     cur.execute(attendanceQuery, (zoomWebinarId,))
@@ -335,55 +356,129 @@ def generateEmailWiseAttendanceFromDB(cnx, zoomWebinarId):
         email = row[0]
         if email != currEmail:
             if currEmail is not None:
-                yield ([currEmail]+currAttendedArray)
+                if isDefaulter(currAttendedArray, days=defaultDays):
+                    defaultersCount += 1
+                    defaultersWriter.writerow([currEmail])
+                attendanceWriter.writerow([currEmail]+currAttendedArray)
                 count += 1
             currEmail = email
             currAttendedArray = []
         currAttendedArray.append(row[2])
     if currEmail and currAttendedArray:
-        yield ([currEmail]+currAttendedArray)
+        if isDefaulter(currAttendedArray, days=defaultDays):
+            defaultersCount += 1
+            defaultersWriter.writerow([currEmail])
+        attendanceWriter.writerow([currEmail]+currAttendedArray)
         count += 1
     cur.close()
-    _logger.info('%s lines yielded', count)
+    _logger.info('Registrants: %s | Defaulters: %s', count, defaultersCount)
+
+
+def guessOrInputWebinarDirectoryName(zoomWebinarId):
+    webinarDir = None
+    for f in listdir('.'):
+        if isdir(f) and zoomWebinarId in f:
+            webinarDir = f
+            _logger.info("Found directory '%s'", webinarDir)
+            break
+
+    yn = 'N'
+    if webinarDir:
+        flushLogs()
+        yn = raw_input("Load files from directory '%s'? (Y/N)> "%webinarDir)
+
+    if yn.upper() not in ('YES', 'Y') and yn.strip() != '':
+        flushLogs()
+        webinarDir = raw_input("Enter the directory to look for attendee report files> ")
+        while not isdir(webinarDir):
+            _logger.error('Not a valid directory: %s', webinarDir)
+            flushLogs()
+            webinarDir = raw_input("Enter the directory to look for attendee report files> ")
+
+    return webinarDir
 
 
 def loadAttendeeReportsToDB(dbfile, webinarId):
     conn = sqlite3.connect(dbfile)
     ai = AttendeeReportImporter(conn)
-    for f in listdir('.'):
-        if exists(f) and f.startswith(webinarId+' - Attendee Report'):
-            _logger.info('Processing file: %s', f)
-            ai.importAttendeeReport(f)
+    webinarDir = guessOrInputWebinarDirectoryName(webinarId)
+    for f in listdir(webinarDir):
+        fp = join(webinarDir, f)
+        if exists(fp) and f.startswith(webinarId+' - Attendee Report'):
+            _logger.info('Processing file: %s', fp)
+            ai.importAttendeeReport(fp)
+            _logger.info('Done')
     conn.close()
 
 
-def exportAttendanceFromDB(dbfile, zoomWebinarId, outputfilepath):
+def exportAttendanceFromDB(dbfile, zoomWebinarId, outputfilepath, defaultersfilepath, defaultDays=4):
     conn = sqlite3.connect(dbfile)
-    with open(outputfilepath, 'wt') as ofd:
-        _logger.info('Writing to %s', outputfilepath)
+
+    with open(outputfilepath, 'wb') as ofd, open(defaultersfilepath, 'wb') as dfd:
+        _logger.info('Writing attendance to %s', outputfilepath)
         wrt = csv.writer(ofd)
-        wrt.writerows(generateEmailWiseAttendanceFromDB(conn, zoomWebinarId))
+
+        _logger.info('Writing defaulters to %s', defaultersfilepath)
+        dwrt = csv.writer(dfd)
+
+        generateEmailWiseAttendanceFromDB(conn, zoomWebinarId, wrt, dwrt, defaultDays=defaultDays)
+
     conn.close()
+
 
 def getOutputFilePath(zoomWebinarId):
     if not exists('output'):
         makedirs('output')
     return join('output', '%s-AttendanceByEmail.csv'%zoomWebinarId)
-    
+
+
+def getDefaultersFilePath(zoomWebinarId):
+    if not exists('output'):
+        makedirs('output')
+    return join('output', '%s-Defaulters.csv'%zoomWebinarId)
+
+
+def getDefaultDays(defaultDays = 4):
+    while True:
+        flushLogs()
+        dd = raw_input('Enter number of consecutive days to check defaulters [default: %s]> '%defaultDays)
+        if dd is None or dd.strip() == '':
+            _logger.info('Considering %s consecutive days absentee as defaulter', defaultDays)
+            return defaultDays
+        else:
+            try:
+                defaultDays = int(dd)
+                _logger.info('Considering %s consecutive days absentee as defaulter', defaultDays)
+                return defaultDays
+            except Exception:
+                _logger.error('Not a valid number: %s', dd)
+
+
 def main():
     # processNoDB()
     try:
         dbfile = 'agni-gcr.db'
+        flushLogs()
         zoomWebinarId = raw_input("Enter zoom webinar id> ")
         
         zoomWebinarId = zoomWebinarId.replace('-', '')
         _logger.info('Processing zoom webinar id: %s', zoomWebinarId)
         loadAttendeeReportsToDB(dbfile, zoomWebinarId)
-        exportAttendanceFromDB(dbfile, zoomWebinarId, getOutputFilePath(zoomWebinarId))
+
+        dd = getDefaultDays(defaultDays=4)
+
+        exportAttendanceFromDB(
+            dbfile,
+            zoomWebinarId,
+            getOutputFilePath(zoomWebinarId),
+            getDefaultersFilePath(zoomWebinarId),
+            defaultDays=dd
+        )
     except:
         _logger.exception('Error occurred')
         raise
     finally:
+        flushLogs()
         raw_input('Press <ENTER> key to quit..')
 
 
