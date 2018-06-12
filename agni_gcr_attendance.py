@@ -290,7 +290,7 @@ class AttendeeReportImporter:
 
 
 def isDefaulter(attendanceArray, days=4):
-    if len(attendanceArray) > days:
+    if len(attendanceArray) >= days:
         attSet = set(attendanceArray[-days:])
         if ('Yes' not in attSet) and ('NA' not in attSet):
             return True
