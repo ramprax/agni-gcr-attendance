@@ -225,6 +225,7 @@ class AttendeeReportImporter:
                     )
                 '''
         cur = None
+        _logger.debug('Registrants to update: %s', registrantParamsList)
         try:
             cur = self._cnx.cursor()
             cur.executemany(rupd, registrantParamsList)
@@ -243,6 +244,7 @@ class AttendeeReportImporter:
                 SELECT ?, id, ? FROM webinar_registrant WHERE email = ? AND webinar_id = ?
             '''
         cur = None
+        _logger.debug('Attendance to insert: %s', attendanceParamsList)
         try:
             cur = self._cnx.cursor()
             cur.executemany(ains, attendanceParamsList)
@@ -261,6 +263,7 @@ class AttendeeReportImporter:
                 WHERE webinar_class_id= ? AND registrant_id = (SELECT id FROM webinar_registrant WHERE email = ?)
             '''
         cur = None
+        _logger.debug('Attendance to update: %s', attendanceParamsList)
         try:
             cur = self._cnx.cursor()
             cur.executemany(aupd, attendanceParamsList)
