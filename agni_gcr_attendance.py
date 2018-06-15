@@ -51,16 +51,39 @@ def flushLogs():
 _logger.info('Log file location: %s', getLogFilePath())
 
 TABLE_WEBINAR = '''
-    CREATE TABLE IF NOT EXISTS webinar(id INTEGER PRIMARY KEY, zoom_webinar_id TEXT, topic TEXT)
+    CREATE TABLE IF NOT EXISTS webinar(
+        id INTEGER PRIMARY KEY,
+        zoom_webinar_id TEXT NOT NULL UNIQUE,
+        topic TEXT NOT NULL UNIQUE
+    )
 '''
 TABLE_WEBINAR_REGISTRANT = '''
-    CREATE TABLE IF NOT EXISTS webinar_registrant(id INTEGER PRIMARY KEY, email TEXT, webinar_id INTEGER, original_registration_datetime TEXT, internal_registration_datetime TEXT)
+    CREATE TABLE IF NOT EXISTS webinar_registrant(
+        id INTEGER PRIMARY KEY,
+        email TEXT NOT NULL,
+        webinar_id INTEGER NOT NULL REFERENCES webinar(id),
+        original_registration_datetime TEXT,
+        internal_registration_datetime TEXT,
+        UNIQUE(email, webinar_id)
+    )
 '''
 TABLE_WEBINAR_CLASS = '''
-    CREATE TABLE IF NOT EXISTS webinar_class(id INTEGER PRIMARY KEY, webinar_id TEXT, internal_datetime TEXT, original_datetime TEXT)
+    CREATE TABLE IF NOT EXISTS webinar_class(
+        id INTEGER PRIMARY KEY,
+        webinar_id INTEGER NOT NULL REFERENCES webinar(id),
+        internal_datetime TEXT NOT NULL,
+        original_datetime TEXT,
+        UNIQUE(webinar_id, internal_datetime)
+    )
 '''
 TABLE_ATTENDANCE = '''
-    CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY, webinar_class_id INTEGER, registrant_id INTEGER, attended TEXT)
+    CREATE TABLE IF NOT EXISTS attendance(
+        id INTEGER PRIMARY KEY,
+        webinar_class_id INTEGER NOT NULL REFERENCES webinar_class(id),
+        registrant_id INTEGER NOT NULL REFERENCES webinar_registrant(id),
+        attended TEXT NOT NULL,
+        UNIQUE(webinar_class_id, registrant_id)
+    )
 '''
 
 SECTION_NAMES = (
@@ -86,12 +109,8 @@ class AttendeeReportImporter:
             'Attendee Details':self.processAttendeeDetailsLine,
             'Other Attended':self.ignoreLine,
         }
-        self._cnx = cnx 
-        self.currentClassId = None
-        self.currentClassDate = None
-        self.currentWebinarId = None
-        self.emailColIndex = None
-        self.regDateColIndex = None
+        self._cnx = cnx
+        self._resetCurrentContext()
         self._prepareDB()
     
     def _resetCurrentContext(self):
@@ -100,7 +119,13 @@ class AttendeeReportImporter:
         self.currentWebinarId = None
         self.emailColIndex = None
         self.regDateColIndex = None
-    
+        self._insertedRegistrantEmails = []
+        self.registrantInsertParams = []
+        self.registrantUpdateParams = []
+        self._insertedAttendances = {}
+        self.attendanceInsertParams = []
+        self.attendanceUpdateParams = []
+
     def _prepareDB(self):
         cur = self._cnx.cursor()
         cur.execute(TABLE_WEBINAR)
@@ -162,7 +187,76 @@ class AttendeeReportImporter:
 
         pass
 
+    def _insertRegistrants(self, registrantParamsList):
+        rins = '''
+                INSERT INTO webinar_registrant (
+                    email,
+                    webinar_id,
+                    internal_registration_datetime,
+                    original_registration_datetime
+                ) VALUES (?, ?, ?, ?)                
+            '''
+        cur = None
+        _logger.debug('Registrants to insert: %s', registrantParamsList)
+        try:
+            cur = self._cnx.cursor()
+            cur.executemany(rins, registrantParamsList)
+            self._cnx.commit()
+        finally:
+            if cur:
+                cur.close()
+
+    def _updateRegistrants(self, registrantParamsList):
+        rupd = '''
+                    UPDATE webinar_registrant
+                    SET internal_registration_datetime = ?,
+                        original_registration_datetime = ?
+                    WHERE email = ? AND webinar_id = ?
+                    AND (
+                        internal_registration_datetime IS NULL
+                        OR
+                        internal_registration_datetime > ?
+                    )
+                '''
+        cur = None
+        try:
+            cur = self._cnx.cursor()
+            cur.executemany(rupd, registrantParamsList)
+            self._cnx.commit()
+        finally:
+            if cur:
+                cur.close()
+
+    def _insertAttendance(self, attendanceParamsList):
+        ains = '''
+                INSERT INTO attendance(webinar_class_id, registrant_id, attended)
+                SELECT ?, id, ? FROM webinar_registrant WHERE email = ? AND webinar_id = ?
+            '''
+        cur = None
+        try:
+            cur = self._cnx.cursor()
+            cur.executemany(ains, attendanceParamsList)
+            self._cnx.commit()
+        finally:
+            if cur:
+                cur.close()
+
+    def _updateAttendance(self, attendanceParamsList):
+        aupd = '''
+                UPDATE attendance SET attended=?
+                WHERE webinar_class_id= ? AND registrant_id = (SELECT id FROM webinar_registrant WHERE email = ?)
+            '''
+        cur = None
+        try:
+            cur = self._cnx.cursor()
+            cur.executemany(aupd, attendanceParamsList)
+            self._cnx.commit()
+        finally:
+            if cur:
+                cur.close()
+
     def processAttendeeDetailsLine(self, line):
+
         isHeader = line[0].startswith('Attendee Details') or line[0].startswith('Attended')
         if isHeader:
             if line[0].startswith('Attended'):
@@ -191,44 +285,47 @@ class AttendeeReportImporter:
         cur = self._cnx.cursor()
         cur.execute(rq, (email, self.currentWebinarId))
         rows = cur.fetchall()
-        if not rows:
+
+        if not rows and (email not in self._insertedRegistrantEmails):
             # Save to table webinar_registrant
-            rins = '''
-                INSERT INTO webinar_registrant (
-                    email,
-                    webinar_id,
-                    internal_registration_datetime,
-                    original_registration_datetime
-                ) VALUES (?, ?, ?, ?)                
-            '''
-            cur.execute(rins,
-                (email, self.currentWebinarId, internalRegisteredDateStr, registeredDateStr)
-            )
-            registrantId = cur.lastrowid
+            # rins = '''
+            #     INSERT INTO webinar_registrant (
+            #         email,
+            #         webinar_id,
+            #         internal_registration_datetime,
+            #         original_registration_datetime
+            #     ) VALUES (?, ?, ?, ?)
+            # '''
+            # cur.execute(rins,
+            #     (email, self.currentWebinarId, internalRegisteredDateStr, registeredDateStr)
+            # )
+            self._insertedRegistrantEmails.append(email)
+            self.registrantInsertParams.append((email, self.currentWebinarId, internalRegisteredDateStr, registeredDateStr))
         else:
-            registrantId = rows[0][0]
             if registeredDateStr:
-                rupd = '''
-                    UPDATE webinar_registrant
-                    SET internal_registration_datetime = ?,
-                        original_registration_datetime = ?
-                    WHERE id = ?
-                    AND (
-                        internal_registration_datetime IS NULL
-                        OR
-                        internal_registration_datetime > ?
-                    )
-                '''
-                cur.execute(rupd,
-                    (internalRegisteredDateStr, registeredDateStr, registrantId,
-                     internalRegisteredDateStr)
-                )
+                # rupd = '''
+                #     UPDATE webinar_registrant
+                #     SET internal_registration_datetime = ?,
+                #         original_registration_datetime = ?
+                #     WHERE email = ? AND webinar_id = ?
+                #     AND (
+                #         internal_registration_datetime IS NULL
+                #         OR
+                #         internal_registration_datetime > ?
+                #     )
+                # '''
+                # cur.execute(rupd,
+                #     (internalRegisteredDateStr, registeredDateStr, email, self.currentWebinarId,
+                #      internalRegisteredDateStr)
+                # )
+                self.registrantUpdateParams.append((internalRegisteredDateStr, registeredDateStr, email, self.currentWebinarId,
+                                          internalRegisteredDateStr))
         
         aq = '''
             SELECT attended FROM attendance
-            WHERE webinar_class_id = ? AND registrant_id = ?
+            WHERE webinar_class_id = ? AND registrant_id = (SELECT id FROM webinar_registrant WHERE email = ? AND webinar_id = ?)
         '''
-        cur.execute(aq, (self.currentClassId, registrantId))
+        cur.execute(aq, (self.currentClassId, email, self.currentWebinarId))
         rows = cur.fetchall()
         shouldUpdate = False
         shouldInsert = False
@@ -236,25 +333,31 @@ class AttendeeReportImporter:
             savedAttended = rows[0][0]
             if savedAttended == 'No' and hadAttended == 'Yes':
                 shouldUpdate = True
+        elif email in self._insertedAttendances:
+            savedAttended = self._insertedAttendances[email]
+            if savedAttended == 'No' and hadAttended == 'Yes':
+                shouldUpdate = True
         else:
             shouldInsert = True
         
         # Save to table attendance
         if shouldInsert:
-            ains = '''
-                INSERT INTO attendance(webinar_class_id, registrant_id, attended)
-                VALUES (?, ?, ?)
-            '''
-            cur.execute(ains, (self.currentClassId, registrantId, hadAttended))
+            # ains = '''
+            #     INSERT INTO attendance(webinar_class_id, registrant_id, attended)
+            #     (SELECT ?, id, ? FROM webinar_registrant WHERE email = ? AND webinar_id = ?)
+            # '''
+            # cur.execute(ains, (self.currentClassId, hadAttended, email, self.currentWebinarId))
+            self._insertedAttendances[email] = hadAttended
+            self.attendanceInsertParams.append((self.currentClassId, hadAttended, email, self.currentWebinarId))
         elif shouldUpdate:
-            aupd = '''
-                UPDATE attendance SET attended=?
-                WHERE webinar_class_id= ? AND registrant_id = ?
-            '''
-            cur.execute(aupd, (hadAttended, self.currentClassId, registrantId))
+            # aupd = '''
+            #     UPDATE attendance SET attended=?
+            #     WHERE webinar_class_id= ? AND registrant_id = (SELECT id FROM webinar_registrant WHERE email = ? AND webinar_id = ?)
+            # '''
+            # cur.execute(aupd, (hadAttended, self.currentClassId, email, self.currentWebinarId))
+            self.attendanceUpdateParams.append((hadAttended, self.currentClassId, email, self.currentWebinarId))
         self._cnx.commit()
         cur.close()
-        pass
 
     def ignoreLine(self, line):
         pass
@@ -284,6 +387,12 @@ class AttendeeReportImporter:
                             curSection = s
                             break
                     self.processLine(curSection, line)
+
+            self._insertRegistrants(self.registrantInsertParams)
+            self._updateRegistrants(self.registrantUpdateParams)
+            self._insertAttendance(self.attendanceInsertParams)
+            self._updateAttendance(self.attendanceUpdateParams)
+
         except:
             _logger.exception('**** Error in file %s at line %s: %s', filename, curLine, line)
             raise
