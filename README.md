@@ -5,6 +5,7 @@ This will do the following:
 * Read Agni GCR webinar attendee reports csv files
 * Save the data to sqlite db file
 * Generate a consolidated email-wise attendance report
+* Generate a report of defaulters
 
 ### Using the program ###
 * Download ```agni_gcr_attendance-win64.zip``` from [https://github.com/ramprax/agni-gcr-attendance/releases](https://github.com/ramprax/agni-gcr-attendance/releases)
