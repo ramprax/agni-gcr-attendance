@@ -130,10 +130,10 @@ def sanitizeWebinarId(originalWebinarId):
         intZoomWebinarId = int(zoomWebinarId)
         return zoomWebinarId
     except:
-        raise Exception(
-            "Expected webinar id to be a number with/without '-' in between. Instead got '%s'",
-            originalWebinarId
-        )
+        _logger.exception("Expected webinar id to be a number with/without '-' in between. Instead got '%s'",
+                          originalWebinarId)
+        raise Exception("Expected webinar id to be a number with/without '-' in between. Instead got '%s'" %
+                        originalWebinarId, originalWebinarId)
 
 class AttendeeReportImporter:
     
