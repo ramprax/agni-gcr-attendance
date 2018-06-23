@@ -88,6 +88,7 @@ TABLE_ATTENDANCE = '''
 SECTION_NAMES = (
     'Attendee Report',
     'Topic',
+    'Host Details',
     'Panelist Details',
     'Attendee Details',
     'Other Attended',
@@ -107,6 +108,7 @@ class AttendeeReportImporter:
             'Panelist Details':self.ignoreLine,
             'Attendee Details':self.processAttendeeDetailsLine,
             'Other Attended':self.ignoreLine,
+            'Host Details':self.ignoreLine,
         }
         self._cnx = cnx
         self._resetCurrentContext()
@@ -355,7 +357,8 @@ class AttendeeReportImporter:
     def processLine(self, section, line):
         if not section:
             return
-        self._sectionHandler[section](line)
+        handleLine = self._sectionHandler.get(section, self.ignoreLine)
+        handleLine(line)
 
     def importAttendeeReport(self, filename):
         self._resetCurrentContext()
