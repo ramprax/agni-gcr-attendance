@@ -1,5 +1,5 @@
 *.pyc 
-output 
+*old-output
 build 
 dist 
 *.csv 
@@ -9,3 +9,4 @@ logs
 *.log
 .idea
 *.iml
+output

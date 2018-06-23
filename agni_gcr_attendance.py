@@ -287,7 +287,7 @@ class AttendeeReportImporter:
         hadAttended = line[0]
         if not hadAttended:
             return
-        email = line[self.emailColIndex]
+        email = line[self.emailColIndex].strip().lower()
         
         registeredDateStr = line[self.regDateColIndex]
         if registeredDateStr:
@@ -559,27 +559,35 @@ def getDefaultDays(defaultDays = 4):
             except Exception:
                 _logger.error('Not a valid number: %s', dd)
 
+def processSingleWebinarId():
+    dbfile = 'agni-gcr.db'
+    flushLogs()
+    zoomWebinarId = raw_input("Enter zoom webinar id> ")
+
+    zoomWebinarId = zoomWebinarId.replace('-', '')
+    _logger.info('Processing zoom webinar id: %s', zoomWebinarId)
+    loadAttendeeReportsToDB(dbfile, zoomWebinarId)
+
+    dd = getDefaultDays(defaultDays=4)
+
+    exportAttendanceFromDB(
+        dbfile,
+        zoomWebinarId,
+        getOutputFilePath(zoomWebinarId),
+        getDefaultersFilePath(zoomWebinarId),
+        defaultDays=dd
+    )
+
+def doAgainLoop(func, prompt='Do again?'):
+    yn = 'Y'
+    while yn.strip().upper() in ('Y', 'YES', ''):
+        func()
+        yn = raw_input(prompt+' (Y/N) >')
 
 def main():
     # processNoDB()
     try:
-        dbfile = 'agni-gcr.db'
-        flushLogs()
-        zoomWebinarId = raw_input("Enter zoom webinar id> ")
-        
-        zoomWebinarId = zoomWebinarId.replace('-', '')
-        _logger.info('Processing zoom webinar id: %s', zoomWebinarId)
-        loadAttendeeReportsToDB(dbfile, zoomWebinarId)
-
-        dd = getDefaultDays(defaultDays=4)
-
-        exportAttendanceFromDB(
-            dbfile,
-            zoomWebinarId,
-            getOutputFilePath(zoomWebinarId),
-            getDefaultersFilePath(zoomWebinarId),
-            defaultDays=dd
-        )
+        doAgainLoop(processSingleWebinarId, prompt='Process another webinar?')
     except:
         _logger.exception('Error occurred')
         raise
