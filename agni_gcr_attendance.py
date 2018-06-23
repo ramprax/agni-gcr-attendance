@@ -99,6 +99,42 @@ ZOOM_REGISTRATION_DATETIME_FORMAT = '%b %d, %Y %H:%M:%S'
 INTERNAL_DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 EXPORT_DATE_FORMAT = '%b %d, %Y'
 
+
+def sanitizeEmail(email):
+    email = email.strip().lower()
+    emailParts = email.split('@')
+
+    if len(emailParts) != 2:
+        raise Exception('Invalid email id: %s', email)
+
+    for ep in emailParts:
+        if not ep:
+            raise Exception('Invalid email id: %s', email)
+
+    emailDomainParts = emailParts[1].split('.')
+
+    if len(emailDomainParts) <= 1:
+        raise Exception('Invalid email id: %s', email)
+
+    for ed in emailDomainParts:
+        if not ed:
+            raise Exception('Invalid email id: %s', email)
+
+    return email
+
+
+def sanitizeWebinarId(originalWebinarId):
+    zoomWebinarId = originalWebinarId.strip().replace('-', '')
+
+    try:
+        intZoomWebinarId = int(zoomWebinarId)
+        return zoomWebinarId
+    except:
+        raise Exception(
+            "Expected webinar id to be a number with/without '-' in between. Instead got '%s'",
+            originalWebinarId
+        )
+
 class AttendeeReportImporter:
     
     def __init__(self, cnx):
@@ -144,7 +180,10 @@ class AttendeeReportImporter:
         topic = line[0]
         if not topic:
             return
-        zoomWebinarId = line[1].replace('-', '')
+
+        originalWebinarId = line[1]
+        zoomWebinarId = sanitizeWebinarId(originalWebinarId)
+
         # Save this to table webinar
         wq = '''
             SELECT id FROM webinar WHERE zoom_webinar_id = ?
@@ -289,7 +328,8 @@ class AttendeeReportImporter:
         hadAttended = line[0]
         if not hadAttended:
             return
-        email = line[self.emailColIndex].strip().lower()
+
+        email = sanitizeEmail(line[self.emailColIndex])
         
         registeredDateStr = line[self.regDateColIndex]
         if registeredDateStr:
@@ -562,12 +602,13 @@ def getDefaultDays(defaultDays = 4):
             except Exception:
                 _logger.error('Not a valid number: %s', dd)
 
+
 def processSingleWebinarId():
     dbfile = 'agni-gcr.db'
     flushLogs()
     zoomWebinarId = raw_input("Enter zoom webinar id> ")
 
-    zoomWebinarId = zoomWebinarId.replace('-', '')
+    zoomWebinarId = sanitizeWebinarId(zoomWebinarId)
     _logger.info('Processing zoom webinar id: %s', zoomWebinarId)
     loadAttendeeReportsToDB(dbfile, zoomWebinarId)
 
@@ -581,11 +622,13 @@ def processSingleWebinarId():
         defaultDays=dd
     )
 
+
 def doAgainLoop(func, prompt='Do again?'):
     yn = 'Y'
     while yn.strip().upper() in ('Y', 'YES', ''):
         func()
         yn = raw_input(prompt+' (Y/N) >')
+
 
 def main():
     # processNoDB()
