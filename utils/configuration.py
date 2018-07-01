@@ -1,8 +1,8 @@
 from ConfigParser import ConfigParser
-from genericpath import exists
 from os.path import dirname, abspath, join, exists
 
 from os import getcwd, makedirs
+from sys import argv
 
 PROP_ZOOM_API_BASE_URL = 'api_base_url'
 
@@ -16,10 +16,19 @@ SECTION_AGNI = 'agni'
 
 
 def getBaseDir():
+    runningFile = argv[0]
+    if runningFile.lower().endswith('agni_gcr_attendance.exe'):
+        bd = abspath(dirname(runningFile))
+        print 'Got basedir:', bd
+        return bd
     try:
-        return abspath(dirname(dirname(__file__)))
+        bd = abspath(dirname(dirname(__file__)))
+        print 'Got basedir:', bd
+        return bd
     except:
-        return abspath(getcwd())
+        bd = abspath(getcwd())
+        print 'Got basedir:', bd
+        return bd
 
 
 def getLogsDir():
