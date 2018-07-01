@@ -86,7 +86,9 @@ def generateEmailWiseAttendanceFromDB(cnx, zoomWebinarId, attendanceWriter, defa
 
 
 def exportAttendanceFromDB(zoomWebinarId):
-    dd = getDefaultDays(defaultDays=agni_configuration.getAgniAttendanceDefaultDays())
+    # dd = getDefaultDays(defaultDays=agni_configuration.getAgniAttendanceDefaultDays())
+    dd = agni_configuration.getAgniAttendanceDefaultDays()
+    _logger.info('Considering %s consecutive days absentee as defaulter. To change this edit the ini file', dd)
 
     attendanceReportFilePath = getOutputFilePath(zoomWebinarId)
     defaultersReportFilePath = getDefaultersFilePath(zoomWebinarId)

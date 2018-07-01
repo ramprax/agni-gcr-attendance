@@ -1,5 +1,4 @@
 import csv
-import sqlite3
 from datetime import datetime
 from genericpath import exists
 from os import listdir
@@ -8,7 +7,7 @@ from os.path import join, isdir
 from utils.logger import flushLogs, getAgniLogger
 from utils.common import sanitizeEmail
 from zoom.common import sanitizeWebinarId
-from agni.db import TABLE_WEBINAR, TABLE_WEBINAR_REGISTRANT, TABLE_WEBINAR_CLASS, TABLE_ATTENDANCE, getConnection
+from agni.db import getConnection, prepareDB
 
 _logger = getAgniLogger(__name__)
 
@@ -41,13 +40,7 @@ class AttendeeReportImporter:
         self.attendanceUpdateParams = []
 
     def _prepareDB(self):
-        cur = self._cnx.cursor()
-        cur.execute(TABLE_WEBINAR)
-        cur.execute(TABLE_WEBINAR_REGISTRANT)
-        cur.execute(TABLE_WEBINAR_CLASS)
-        cur.execute(TABLE_ATTENDANCE)
-        self._cnx.commit()
-        cur.close()
+        prepareDB(self._cnx)
 
     def processTopicLine(self, line):
         isHeader = line[0].startswith('Topic')

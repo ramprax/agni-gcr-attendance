@@ -41,3 +41,18 @@ TABLE_ATTENDANCE = '''
 def getConnection():
     dbfile = getDbFile()
     return sqlite3.connect(dbfile)
+
+def prepareDB(cnx):
+    cur = None
+    try:
+        cur = cnx.cursor()
+        cur.execute(TABLE_WEBINAR)
+        cur.execute(TABLE_WEBINAR_REGISTRANT)
+        cur.execute(TABLE_WEBINAR_CLASS)
+        cur.execute(TABLE_ATTENDANCE)
+
+        # This commit is not necessary for the DDLs above, but is here just in case
+        cnx.commit()
+    finally:
+        if cur:
+            cur.close()
