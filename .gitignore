@@ -10,3 +10,5 @@ logs
 .idea
 *.iml
 output
+*.cfg
+*.ini
