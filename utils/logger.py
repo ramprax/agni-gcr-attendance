@@ -2,9 +2,6 @@ import sys
 from logging import getLogger, DEBUG, Formatter, basicConfig, StreamHandler, INFO
 from logging.handlers import TimedRotatingFileHandler
 
-from utils.configuration import getLogFilePath
-
-
 def addFileHandler(filepath):
     rootLogger = getLogger()
     fh = TimedRotatingFileHandler(filepath, when='midnight')
@@ -15,6 +12,8 @@ def addFileHandler(filepath):
 
 
 def _configureLogger():
+    from utils.configuration import getLogFilePath
+
     basicConfig(
         format='%(asctime)s %(levelname)-9.9s %(message)s',
         datefmt='%d-%b-%Y %H:%M:%S',

@@ -79,14 +79,21 @@ def generateDefaultConfig():
     return cfg
 
 def loadOrCreateConfigFile():
+    from utils.logger import getAgniLogger
+    _logger = getAgniLogger(__name__)
+
     cfgFile = getConfigFile()
     if not exists(cfgFile):
+        _logger.warn('Configuration file %s not found', cfgFile)
         cfg = generateDefaultConfig()
         with open(cfgFile, 'wt') as fp:
+            _logger.warn('Writing default configs to %s', cfgFile)
             cfg.write(fp)
+        return cfg
 
     cfg = ConfigParser()
     with open(cfgFile, 'rt') as fp:
+        _logger.info('Using config file %s', cfgFile)
         cfg.readfp(fp)
 
     return cfg
@@ -113,4 +120,7 @@ class AgniConfiguration:
     def getZoomApiToken(self):
         return self.getZoomOption(PROP_ZOOM_API_TOKEN)
 
-agni_configuration = AgniConfiguration()
+if __name__ == '__main__':
+    print 'Nothing to run'
+else:
+    agni_configuration = AgniConfiguration()
