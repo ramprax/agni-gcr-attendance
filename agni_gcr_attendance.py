@@ -1,5 +1,5 @@
 
-from agni.attendance import exportAttendanceFromDB, denyDefaulters
+from agni.attendance import exportAttendanceFromDB, cancelDefaulters
 from utils.logger import flushLogs, getAgniLogger
 from utils.configuration import getLogFilePath
 from zoom.attendance_importer import loadAttendeeReportsToDB
@@ -25,7 +25,7 @@ def processSingleWebinarId():
 def processDefaulters():
     zoomWebinarId = getZoomWebinarIdUserInput()
     _logger.info('Processing defaulters for zoom webinar id: %s', zoomWebinarId)
-    num = denyDefaulters(zoomWebinarId)
+    num = cancelDefaulters(zoomWebinarId)
     _logger.info('%s defaulters denied from webinar %s', num, zoomWebinarId)
 
 

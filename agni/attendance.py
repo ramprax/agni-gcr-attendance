@@ -9,7 +9,7 @@ import requests
 from agni.db import getConnection
 from utils.configuration import agni_configuration, getOutputDir
 from utils.logger import flushLogs, getAgniLogger
-from zoom.api import ZoomApi, ACTION_DENY
+from zoom.api import ZoomApi, ACTION_DENY, ACTION_CANCEL
 from zoom.attendance_importer import ZOOM_WEBINAR_DATETIME_FORMAT
 
 _logger = getAgniLogger(__name__)
@@ -148,27 +148,25 @@ def isDefaulter(attendanceArray, days=agni_configuration.getAgniAttendanceDefaul
 EXPORT_DATE_FORMAT = '%b %d, %Y'
 
 
-def getRegistrantsToDeny(zoomWebinarId, defaulterEmails):
-    za = ZoomApi()
-    registrantsToDeny = []
-    registrants = za.getAllWebinarRegistrants(zoomWebinarId)
-    for r in registrants:
-        id = r['id']
-        em = r['email']
-        if em.strip().lower() in defaulterEmails:
-            registrantsToDeny.append({
-                'id': id,
-                'email': em
-            })
-    return registrantsToDeny
+def getRegistrantsToUpdateStatus(zoomWebinarId, registrantEmails):
+    registrantsToUpdateStatus = []
+    for em in registrantEmails:
+        registrantsToUpdateStatus.append({
+            'email': em.strip().lower()
+        })
+    return registrantsToUpdateStatus
 
 
 def denyRegistrants(zoomWebinarId, registrants):
     za = ZoomApi()
     return za.updateWebinarRegistrantsStatus(zoomWebinarId, ACTION_DENY, registrants=registrants)
 
+def cancelRegistrants(zoomWebinarId, registrants):
+    za = ZoomApi()
+    return za.updateWebinarRegistrantsStatus(zoomWebinarId, ACTION_CANCEL, registrants=registrants)
 
-def denyDefaulters(zoomWebinarId):
+
+def cancelDefaulters(zoomWebinarId):
     yn = 'N'
     emails = []
     defaultersFilePath = getDefaultersFilePath(zoomWebinarId)
@@ -187,9 +185,9 @@ def denyDefaulters(zoomWebinarId):
     if yn.upper().strip() not in ('Y', 'YES'):
         return 0
 
-    r2d = getRegistrantsToDeny(zoomWebinarId, emails)
-    ret = denyRegistrants(zoomWebinarId, r2d)
+    r2c = getRegistrantsToUpdateStatus(zoomWebinarId, emails)
+    ret = cancelRegistrants(zoomWebinarId, r2c)
     _logger.info('ret=%s', ret)
 
-    return len(r2d)
+    return len(r2c)
 
