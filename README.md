@@ -6,7 +6,7 @@ This will do the following:
 * Save the data to sqlite db file
 * Generate a consolidated email-wise attendance report
 * Generate a report of defaulters
-* Call Zoom-api to deny registrants who are defaulters
+* Call Zoom-api to cancel registrants who are defaulters
 
 ### Using the program ###
 * Download ```agni_gcr_attendance-win64.zip``` from [https://github.com/ramprax/agni-gcr-attendance/releases](https://github.com/ramprax/agni-gcr-attendance/releases)
