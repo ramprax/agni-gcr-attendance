@@ -26,14 +26,14 @@ def processDefaulters():
     zoomWebinarId = getZoomWebinarIdUserInput()
     _logger.info('Processing defaulters for zoom webinar id: %s', zoomWebinarId)
     num = cancelDefaulters(zoomWebinarId)
-    _logger.info('%s defaulters denied from webinar %s', num, zoomWebinarId)
+    _logger.info('%s defaulters cancelled from webinar %s', num, zoomWebinarId)
 
 
 MENU = (
 '''Agni Global Classroom - Attendance
 ==================================
 1. Import attendee reports & generate consolidated attendance report
-2. Deny webinar registrants who are defaulters
+2. Cancel webinar registrants who are defaulters
 Enter choice> '''
 )
 

@@ -1,3 +1,5 @@
+import json
+
 import requests
 
 from utils.configuration import agni_configuration
@@ -111,20 +113,25 @@ class ZoomApi:
         if len(registrants) <= MAX_REGISTRANTS_PER_CALL:
             if registrants:
                 requestBody[PARAM_REGISTRANTS] = registrants
-            resp = requests.put(requestUrl, params=requestQuery, data=requestBody)
+
+            #json.dumps(requestBody)
+            #_logger.debug('updateWebinarRegistrantsStatus: requestBody = %s', requestBody)
+            _logger.debug('updateWebinarRegistrantsStatus: json-requestBody = %s', requestBody)
+            resp = requests.put(requestUrl, params=requestQuery, json=requestBody)
             self.checkResponse(resp)
-            resp_json = resp.json()
-            _logger.debug('Got zoom api response: %s', resp_json)
-            respList.append(resp_json)
+            # resp_json = resp.json()
+            # _logger.debug('Got zoom api response: %s', resp_json)
+            respList.append(resp)
         else:
             for i in xrange(0, len(registrants), MAX_REGISTRANTS_PER_CALL):
                 startIdx = i
                 endIdx = (i+MAX_REGISTRANTS_PER_CALL) if (i+MAX_REGISTRANTS_PER_CALL) < len(registrants) else len(registrants)
                 requestBody[PARAM_REGISTRANTS] = registrants[startIdx:endIdx]
-                resp = requests.get(requestUrl, params=requestQuery, data=requestBody)
+                _logger.debug('updateWebinarRegistrantsStatus: requestBody = %s', requestBody)
+                resp = requests.put(requestUrl, params=requestQuery, json=requestBody)
                 self.checkResponse(resp)
-                resp_json = resp.json()
-                _logger.debug('Got zoom api response: %s', resp_json)
-                respList.append(resp_json)
+                # resp_json = resp.json()
+                # _logger.debug('Got zoom api response: %s', resp_json)
+                respList.append(resp)
 
         return respList

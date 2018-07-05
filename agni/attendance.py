@@ -181,7 +181,7 @@ def cancelDefaulters(zoomWebinarId):
     if not emails:
         return 0
 
-    yn = raw_input('Deny %s defaulters from attending webinar %s? (Y/N) > '%(len(emails), zoomWebinarId))
+    yn = raw_input('Cancel %s defaulters from attending webinar %s? (Y/N) > '%(len(emails), zoomWebinarId))
     if yn.upper().strip() not in ('Y', 'YES'):
         return 0
 
