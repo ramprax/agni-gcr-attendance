@@ -7,6 +7,8 @@ from sys import argv
 PROP_ZOOM_API_BASE_URL = 'api_base_url'
 
 PROP_ZOOM_API_TOKEN = 'api_token'
+PROP_ZOOM_API_KEY = 'api_key'
+PROP_ZOOM_API_SECRET = 'api_secret'
 
 SECTION_ZOOM = 'zoom'
 
@@ -65,6 +67,8 @@ DEFAULT_CONFIG = (
     (
         SECTION_ZOOM, (
             (PROP_ZOOM_API_TOKEN, 'ffffffffffffffffffffffffffffffff'),
+            (PROP_ZOOM_API_KEY, 'ffffffffffffffff'),
+            (PROP_ZOOM_API_SECRET, 'ffffffffffffffff'),
             (PROP_ZOOM_API_BASE_URL, 'https://api.zoom.us/v2/'),
         ),
     ),
@@ -119,6 +123,12 @@ class AgniConfiguration:
 
     def getZoomApiToken(self):
         return self.getZoomOption(PROP_ZOOM_API_TOKEN)
+
+    def getZoomApiKey(self):
+        return self.getZoomOption(PROP_ZOOM_API_KEY)
+
+    def getZoomApiSecret(self):
+        return self.getZoomOption(PROP_ZOOM_API_SECRET)
 
 if __name__ == '__main__':
     print 'Nothing to run'

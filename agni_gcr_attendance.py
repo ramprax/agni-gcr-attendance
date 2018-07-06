@@ -2,6 +2,7 @@
 from agni.attendance import exportAttendanceFromDB, cancelDefaulters
 from utils.logger import flushLogs, getAgniLogger
 from utils.configuration import getLogFilePath
+from zoom.api import askAndMakeZoomApiToken
 from zoom.attendance_importer import loadAttendeeReportsToDB
 from zoom.common import sanitizeWebinarId
 
@@ -34,6 +35,7 @@ MENU = (
 ==================================
 1. Import attendee reports & generate consolidated attendance report
 2. Cancel webinar registrants who are defaulters
+3. Generate a Zoom API token for use outside this program
 Enter choice> '''
 )
 
@@ -44,12 +46,12 @@ def doMenu():
         print 'Leaving menu'
         return
 
-    if choice not in (1, 2):
+    if choice not in (1, 2, 3):
         print 'Leaving menu'
         return
 
     choice -= 1
-    funcs = [processSingleWebinarId, processDefaulters]
+    funcs = [processSingleWebinarId, processDefaulters, askAndMakeZoomApiToken]
     funcs[choice]()
 
 
